@@ -7,77 +7,101 @@
     <script src="https://api.bitrix24.com/api/v1/"></script>
     <style>
         body { font-family: sans-serif; margin: 0; padding: 15px; background: #f4f7f9; text-align: center; }
-        video { width: 100%; max-width: 400px; border-radius: 8px; background: #000; transform: scaleX(1); }
+        video { width: 100%; max-width: 400px; border-radius: 8px; background: #000; }
         button { background: #2fc6f6; color: #fff; border: none; padding: 12px 24px; font-size: 16px; border-radius: 5px; margin-top: 15px; cursor: pointer; width: 100%; max-width: 400px; }
         button:active { background: #17b3e3; }
+        .admin-box { background: #fff; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; max-width: 500px; margin: 20px auto; text-align: left; }
         #info { margin-top: 10px; font-size: 14px; color: #535c69; }
     </style>
 </head>
 <body>
 
-    <div id="info">Инициализация Битрикс24...</div>
-    
-    <video id="webcam" autoplay playsinline></video>
-    
-    <button id="capture-btn">Сделать скан документа</button>
-    
-    <canvas id="output-canvas" style="display:none;"></canvas>
+    <div id="scanner-interface" style="display: none;">
+        <div id="info">Инициализация...</div>
+        <video id="webcam" autoplay playsinline></video>
+        <button id="capture-btn">Сделать скан документа</button>
+        <canvas id="output-canvas" style="display:none;"></canvas>
+    </div>
+
+    <div id="admin-interface" style="display: none;">
+        <div class="admin-box">
+            <h3>Настройка сканера оригиналов</h3>
+            <p>Вы открыли приложение из общего меню Маркета. Чтобы сканер появился внутри карточки сделки, нажмите кнопку активации ниже:</p>
+            <button id="bind-placement-btn" style="background: #bbed21; color: #333;">⚡ Активировать вкладку в Сделках</button>
+            <p id="admin-status" style="margin-top: 10px; color: green; font-weight: bold;"></p>
+        </div>
+    </div>
 
     <script>
         let currentDealId = null;
         const video = document.getElementById('webcam');
 
-        // 1. Инициализируем Битрикс24 SDK
         BX24.init(function() {
-            // Получаем контекст (откуда открыли приложение)
             const context = BX24.placement.info();
-            currentDealId = context.options.ID;
-            document.getElementById('info').innerText = `ID текущей сделки: ${currentDealId}`;
             
-            // Запускаем камеру
-            startCamera();
+            // Проверяем, ГДЕ открыто приложение
+            if (context.placement === 'CRM_DEAL_DETAIL_TAB') {
+                // 1. Открыто внутри сделки
+                document.getElementById('scanner-interface').style.display = 'block';
+                currentDealId = context.options.ID;
+                document.getElementById('info').innerText = `ID текущей сделки: ${currentDealId}`;
+                startCamera();
+            } else {
+                // 2. Открыто в Маркете (как на вашем скриншоте)
+                document.getElementById('admin-interface').style.display = 'block';
+            }
         });
 
-        // 2. Функция включения задней камеры смартфона
+        // Кнопка принудительной привязки вкладки из интерфейса Маркета
+        document.getElementById('bind-placement-btn').addEventListener('click', () => {
+            document.getElementById('admin-status').innerText = "Активация...";
+            
+            BX24.callMethod(
+                'placement.bind',
+                {
+                    'PLACEMENT': 'CRM_DEAL_DETAIL_TAB',
+                    'HANDLER': window.location.href, // Автоматически возьмет текущий URL на Vercel
+                    'TITLE': 'Сканер оригинала'
+                },
+                function(res) {
+                    if (res.error()) {
+                        document.getElementById('admin-status').style.color = 'red';
+                        document.getElementById('admin-status').innerText = "Ошибка: " + JSON.stringify(res.error());
+                    } else {
+                        document.getElementById('admin-status').style.color = 'green';
+                        document.getElementById('admin-status').innerText = "🚀 Вкладка успешно активирована! Теперь зайдите в любую сделку и обновите страницу (Ctrl+F5).";
+                    }
+                }
+            );
+        });
+
+        // Функция камеры
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: { exact: "environment" } // Требуем именно заднюю камеру
-                    },
+                    video: { facingMode: { exact: "environment" } },
                     audio: false
                 });
                 video.srcObject = stream;
             } catch (error) {
-                console.log("Задняя камера не найдена, пробуем любую доступную...");
-                // Фоллбек на любую камеру, если exact environment выдал ошибку (например, на ПК)
                 try {
                     const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                     video.srcObject = fallbackStream;
                 } catch (e) {
-                    document.getElementById('info').innerText = "Ошибка доступа к камере: " + e.message;
+                    document.getElementById('info').innerText = "Камера недоступна: " + e.message;
                 }
             }
         }
 
-        // 3. Обработка клика по кнопке
+        // Клик захвата кадра
         document.getElementById('capture-btn').addEventListener('click', () => {
             const canvas = document.getElementById('output-canvas');
             const context = canvas.getContext('2d');
-            
-            // Устанавливаем размер canvas равным разрешению видео
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            
-            // Рисуем текущий кадр из видео на canvas
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Получаем картинку в base64 (пока JPEG для теста)
             const base64Image = canvas.toDataURL('image/jpeg', 0.9);
-            
-            alert(`Кадр захвачен для сделки №${currentDealId}! Длина строки: ${base64Image.length} символов.`);
-            
-            // Сюда следующим шагом добавим отправку файла через BX24.callMethod('crm.deal.update', ...)
+            alert(`Кадр захвачен для сделки №${currentDealId}!`);
         });
     </script>
 </body>
