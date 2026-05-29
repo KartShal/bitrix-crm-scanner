@@ -65,7 +65,7 @@
                         // Режим работы внутри Сделки
                         currentDealId = context.options.ID;
                         info.innerText = `ID текущей сделки: ${currentDealId}`;
-                        video.style.style.display = 'inline-block';
+                        video.style.display = 'inline-block';
                         captureBtn.style.display = 'inline-block';
                         startCamera();
                     } else {
@@ -100,7 +100,7 @@
                 {
                     'PLACEMENT': 'CRM_DEAL_DETAIL_TAB',
                     // window.location.origin вернет чистый адрес https://bitrix-crm-scanner.vercel.app/index.html
-                    'HANDLER': window.location.origin + '/index.html', 
+                    'HANDLER': 'https://bitrix-crm-scanner.vercel.app/page-index.html', 
                     'TITLE': 'Сканер оригинала'
                 },
                 function(res) {

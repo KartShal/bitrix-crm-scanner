@@ -2,11 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (req, res) => {
-    // Читаем ваш статический файл index.html
-    const filePath = path.join(process.cwd(), 'index.html');
+    // Читаем переименованный файл
+    const filePath = path.join(process.cwd(), 'page-index.html');
     const html = fs.readFileSync(filePath, 'utf8');
     
-    // Отдаем его обратно
+    // Отдаем его обратно (Node.js функции поддерживают POST по умолчанию)
     res.setHeader('Content-Type', 'text/html');
     res.status(200).send(html);
 };
