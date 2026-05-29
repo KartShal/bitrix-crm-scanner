@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Установка Сканера</title>
+    <script src="https://api.bitrix24.com/api/v1/"></script>
+</head>
+<body>
+    <div style="padding: 20px; font-family: sans-serif;">
+        <h3>Установка приложения "Сканер оригиналов"...</h3>
+    </div>
+
+    <script>
+        BX24.init(function() {
+            // Регистрируем вкладку в карточке сделки
+            BX24.callMethod(
+                'placement.bind',
+                {
+                    'PLACEMENT': 'CRM_DEAL_DETAIL_TAB',
+                    // НАПРАВЬТЕ СЮДА URL ВАШЕГО ПРОЕКТА НА VERCEL
+                    'HANDLER': 'https://your-vercel-project.vercel.app/index.html',
+                    'TITLE': 'Сканер оригинала'
+                },
+                function(res) {
+                    if (res.error()) {
+                        alert("Ошибка регистрации вкладки: " + JSON.stringify(res.error()));
+                    } else {
+                        console.log("Вкладка успешно зарегистрирована!");
+                        BX24.installFinish();
+                    }
+                }
+            );
+        });
+    </script>
+</body>
+</html>
