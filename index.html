@@ -7,75 +7,115 @@
     <script src="https://api.bitrix24.com/api/v1/"></script>
     <style>
         body { font-family: sans-serif; margin: 0; padding: 15px; background: #f4f7f9; text-align: center; }
-        video { width: 100%; max-width: 400px; border-radius: 8px; background: #000; }
-        button { background: #2fc6f6; color: #fff; border: none; padding: 12px 24px; font-size: 16px; border-radius: 5px; margin-top: 15px; cursor: pointer; width: 100%; max-width: 400px; }
+        /* Элементы скрыты по умолчанию через CSS, управляются ID */
+        video { width: 100%; max-width: 400px; border-radius: 8px; background: #000; display: none; }
+        button { background: #2fc6f6; color: #fff; border: none; padding: 12px 24px; font-size: 16px; border-radius: 5px; margin-top: 15px; cursor: pointer; width: 100%; max-width: 400px; display: none; }
         button:active { background: #17b3e3; }
-        .admin-box { background: #fff; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; max-width: 500px; margin: 20px auto; text-align: left; }
-        #info { margin-top: 10px; font-size: 14px; color: #535c69; }
+        .admin-box { background: #fff; border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; max-width: 500px; margin: 20px auto; text-align: left; display: none; }
+        #info { margin-top: 10px; font-size: 16px; color: #535c69; font-weight: bold; }
+        #loader { font-size: 18px; color: #2fc6f6; margin-top: 50px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="scanner-interface" style="display: none;">
-        <div id="info">Инициализация...</div>
-        <video id="webcam" autoplay playsinline></video>
-        <button id="capture-btn">Сделать скан документа</button>
-        <canvas id="output-canvas" style="display:none;"></canvas>
-    </div>
+    <div id="loader">⏳ Загрузка интерфейса сканера...</div>
 
-    <div id="admin-interface" style="display: none;">
-        <div class="admin-box">
-            <h3>Настройка сканера оригиналов</h3>
-            <p>Вы открыли приложение из общего меню Маркета. Чтобы сканер появился внутри карточки сделки, нажмите кнопку активации ниже:</p>
-            <button id="bind-placement-btn" style="background: #bbed21; color: #333;">⚡ Активировать вкладку в Сделках</button>
-            <p id="admin-status" style="margin-top: 10px; color: green; font-weight: bold;"></p>
-        </div>
+    <div id="info"></div>
+    
+    <video id="webcam" autoplay playsinline></video>
+    <button id="capture-btn">Сделать скан документа</button>
+    <canvas id="output-canvas" style="display:none;"></canvas>
+
+    <div id="admin-interface" class="admin-box">
+        <h3>Настройка сканера оригиналов</h3>
+        <p>Вы открыли приложение вне карточки сделки (в общем списке Маркета или просто в браузере).</p>
+        <p>Чтобы вкладка "Сканер оригинала" появилась внутри каждой сделки, нажмите кнопку ниже:</p>
+        <button id="bind-placement-btn" style="background: #bbed21; color: #333; display: block; font-weight: bold;">⚡ Активировать вкладку в Сделках</button>
+        <p id="admin-status" style="margin-top: 10px; color: green; font-weight: bold;"></p>
     </div>
 
     <script>
         let currentDealId = null;
         const video = document.getElementById('webcam');
+        const captureBtn = document.getElementById('capture-btn');
+        const adminInterface = document.getElementById('admin-interface');
+        const loader = document.getElementById('loader');
+        const info = document.getElementById('info');
+        
+        let isInitialized = false;
 
-        BX24.init(function() {
-            const context = BX24.placement.info();
-            
-            // Проверяем, ГДЕ открыто приложение
-            if (context.placement === 'CRM_DEAL_DETAIL_TAB') {
-                // 1. Открыто внутри сделки
-                document.getElementById('scanner-interface').style.display = 'block';
-                currentDealId = context.options.ID;
-                document.getElementById('info').innerText = `ID текущей сделки: ${currentDealId}`;
-                startCamera();
-            } else {
-                // 2. Открыто в Маркете (как на вашем скриншоте)
-                document.getElementById('admin-interface').style.display = 'block';
+        // ФОЛЛБЕК: Если за 2 секунды Битрикс SDK не ответил, значит мы в обычном браузере
+        const fallbackTimeout = setTimeout(() => {
+            if (!isInitialized) {
+                showAdminInterface();
             }
-        });
+        }, 2000);
 
-        // Кнопка принудительной привязки вкладки из интерфейса Маркета
+        // Инициализация через Битрикс24 SDK
+        if (typeof BX24 !== 'undefined') {
+            BX24.init(function() {
+                isInitialized = true;
+                clearTimeout(fallbackTimeout);
+                loader.style.display = 'none';
+
+                try {
+                    const context = BX24.placement.info();
+                    
+                    if (context && context.placement === 'CRM_DEAL_DETAIL_TAB') {
+                        // Режим работы внутри Сделки
+                        currentDealId = context.options.ID;
+                        info.innerText = `ID текущей сделки: ${currentDealId}`;
+                        video.style.style.display = 'inline-block';
+                        captureBtn.style.display = 'inline-block';
+                        startCamera();
+                    } else {
+                        // Режим работы внутри Маркетплейса
+                        showAdminInterface();
+                    }
+                } catch (e) {
+                    showAdminInterface();
+                }
+            });
+        }
+
+        function showAdminInterface() {
+            loader.style.display = 'none';
+            adminInterface.style.display = 'block';
+        }
+
+        // Кнопка принудительной привязки вкладки
         document.getElementById('bind-placement-btn').addEventListener('click', () => {
-            document.getElementById('admin-status').innerText = "Активация...";
+            const statusDiv = document.getElementById('admin-status');
+            statusDiv.style.color = 'black';
+            statusDiv.innerText = "Активация...";
             
+            if (typeof BX24 === 'undefined' || !BX24.callMethod) {
+                statusDiv.style.color = 'red';
+                statusDiv.innerText = "Ошибка: Скрипт запущен вне Битрикс24. Нажмите эту кнопку внутри портала Битрикс.";
+                return;
+            }
+
             BX24.callMethod(
                 'placement.bind',
                 {
                     'PLACEMENT': 'CRM_DEAL_DETAIL_TAB',
-                    'HANDLER': window.location.href, // Автоматически возьмет текущий URL на Vercel
+                    // window.location.origin вернет чистый адрес https://bitrix-crm-scanner.vercel.app/index.html
+                    'HANDLER': window.location.origin + '/index.html', 
                     'TITLE': 'Сканер оригинала'
                 },
                 function(res) {
                     if (res.error()) {
-                        document.getElementById('admin-status').style.color = 'red';
-                        document.getElementById('admin-status').innerText = "Ошибка: " + JSON.stringify(res.error());
+                        statusDiv.style.color = 'red';
+                        statusDiv.innerText = "Ошибка API: " + JSON.stringify(res.error());
                     } else {
-                        document.getElementById('admin-status').style.color = 'green';
-                        document.getElementById('admin-status').innerText = "🚀 Вкладка успешно активирована! Теперь зайдите в любую сделку и обновите страницу (Ctrl+F5).";
+                        statusDiv.style.color = 'green';
+                        statusDiv.innerText = "🚀 Вкладка успешно активирована! Теперь перейдите в любую сделку CRM и обновите страницу (Ctrl+F5).";
                     }
                 }
             );
         });
 
-        // Функция камеры
+        // Функция запуска камеры
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -88,13 +128,14 @@
                     const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                     video.srcObject = fallbackStream;
                 } catch (e) {
-                    document.getElementById('info').innerText = "Камера недоступна: " + e.message;
+                    info.style.color = 'red';
+                    info.innerText = "Камера недоступна: " + e.message;
                 }
             }
         }
 
         // Клик захвата кадра
-        document.getElementById('capture-btn').addEventListener('click', () => {
+        captureBtn.addEventListener('click', () => {
             const canvas = document.getElementById('output-canvas');
             const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
